@@ -25,6 +25,9 @@ SECRET_KEY = 'django-insecure-74^pd4-l1wpx7#-2=d5hh%l!3ea3suidthc1@#c2jw9!7-g)i&
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 AUTH_USER_MODEL = "users.User"
+AUTHENTICATION_BACKENDS = [
+    "users.auth_backend.PhoneBackend",
+]
 ALLOWED_HOSTS = []
 
 REST_FRAMEWORK = {
