@@ -29,6 +29,9 @@ from .views import (
     AdminSubscriptionListView,
     AdminSubscriptionStatsView,
     AdminSubscriptionDetailView,
+    AdminMarketplaceTemplatesView,
+    AdminTemplateImportView,
+    AdminTemplateDuplicateView,
 )
 
 urlpatterns = [
@@ -42,6 +45,10 @@ urlpatterns = [
     # ✅ NEW
     path("admin/templates/", AdminTemplateListCreateView.as_view()),
     path("admin/templates/<int:pk>/", AdminTemplateDetailView.as_view()),
+
+    path("admin/template-marketplace/", AdminMarketplaceTemplatesView.as_view()),
+    path("admin/templates/import/", AdminTemplateImportView.as_view()),
+    path("admin/templates/<int:pk>/duplicate/", AdminTemplateDuplicateView.as_view()),
 
     path("admin/template-pricing/", AdminTemplatePricingListCreateView.as_view()),
     path("admin/template-pricing/<int:pk>/", AdminTemplatePricingDetailView.as_view()),

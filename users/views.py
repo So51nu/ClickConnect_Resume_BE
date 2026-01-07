@@ -615,3 +615,235 @@ class AdminSubscriptionStatsView(APIView):
             "revenue": revenue,
             "churn": churn,
         })
+
+# views.py (add below your existing template views)
+from rest_framework import generics, status
+from rest_framework.permissions import IsAdminUser
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from django.utils.text import slugify
+from django.core.files.base import ContentFile
+
+import json
+import requests
+
+from .models import ResumeTemplate
+from .serializers import ResumeTemplateSerializer
+
+# ✅ Marketplace templates (FREE) - yahan aap easily add/remove kar sakte ho
+MARKETPLACE_TEMPLATES = [
+    {
+        "key": "simple-01",
+        "name": "Simple 01",
+        "category": "Classic",
+        "layout": "Single Column",
+        "color": "#111827",
+        "price_type": "free",
+        "price": 0,
+        "preview_image_url": "",  # optionally put CDN/static url
+        "schema": {
+            "version": 1,
+            "layout": "Single Column",
+            "theme": {
+                "primary": "#111827",
+                "fontFamily": "Georgia, 'Times New Roman', Times, serif",
+                "headingUppercase": True,
+                "titleSize": 12,
+                "bodySize": 10,
+                "lineHeight": 1.4,
+            },
+            "order": ["header", "summary", "experience", "education", "skills", "projects"],
+            "columns": {"left": [], "right": []},
+            "sections": {
+                "header": {"enabled": True},
+                "summary": {"enabled": True},
+                "experience": {"enabled": True},
+                "education": {"enabled": True},
+                "skills": {"enabled": True},
+                "projects": {"enabled": True},
+                "certifications": {"enabled": False},
+                "languages": {"enabled": False},
+            },
+        },
+    },
+    {
+        "key": "modern-02",
+        "name": "Modern 02",
+        "category": "Modern",
+        "layout": "Two Column",
+        "color": "#2563eb",
+        "price_type": "free",
+        "price": 0,
+        "preview_image_url": "",
+        "schema": {
+            "version": 1,
+            "layout": "Two Column",
+            "theme": {
+                "primary": "#2563eb",
+                "fontFamily": "system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+                "headingUppercase": True,
+                "titleSize": 12,
+                "bodySize": 10,
+                "lineHeight": 1.35,
+            },
+            "columns": {"left": ["summary", "skills", "education"], "right": ["header", "experience", "projects"]},
+            "order": [],
+            "sections": {
+                "header": {"enabled": True},
+                "summary": {"enabled": True},
+                "experience": {"enabled": True},
+                "education": {"enabled": True},
+                "skills": {"enabled": True},
+                "projects": {"enabled": True},
+                "certifications": {"enabled": False},
+                "languages": {"enabled": False},
+            },
+        },
+    },
+    {
+        "key": "nexus-03",
+        "name": "Nexus 03",
+        "category": "Modern",
+        "layout": "Sidebar Left",
+        "color": "#0b4a6f",
+        "price_type": "free",
+        "price": 0,
+        "preview_image_url": "",
+        "schema": {
+            "version": 1,
+            "layout": "Sidebar Left",
+            "theme": {
+                "primary": "#0b4a6f",
+                "fontFamily": "system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+                "headingUppercase": True,
+                "titleSize": 12,
+                "bodySize": 10,
+                "lineHeight": 1.35,
+            },
+            "columns": {"left": ["skills", "education", "languages"], "right": ["header", "summary", "experience", "projects"]},
+            "order": [],
+            "sections": {
+                "header": {"enabled": True},
+                "summary": {"enabled": True},
+                "experience": {"enabled": True},
+                "education": {"enabled": True},
+                "skills": {"enabled": True},
+                "projects": {"enabled": True},
+                "certifications": {"enabled": False},
+                "languages": {"enabled": True},
+            },
+        },
+    },
+]
+
+
+class AdminMarketplaceTemplatesView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        return Response({"results": MARKETPLACE_TEMPLATES})
+
+
+class AdminTemplateImportView(APIView):
+    """
+    ✅ CLONE & FREEZE
+    - marketplace_key OR direct payload
+    - preview_image_url download karke OUR storage me save
+    - schema ko OUR DB me save
+    """
+    permission_classes = [IsAdminUser]
+
+    def post(self, request):
+        key = request.data.get("marketplace_key")
+
+        if key:
+            tpl = next((x for x in MARKETPLACE_TEMPLATES if x["key"] == key), None)
+            if not tpl:
+                return Response({"detail": "Invalid marketplace_key"}, status=400)
+
+            name = tpl["name"]
+            category = tpl["category"]
+            layout = tpl["layout"]
+            color = tpl.get("color", "#2563eb")
+            schema = tpl.get("schema", {})
+            preview_url = tpl.get("preview_image_url", "")
+        else:
+            # direct import support
+            name = request.data.get("name")
+            category = request.data.get("category", "Modern")
+            layout = request.data.get("layout", "Two Column")
+            color = request.data.get("color", "#2563eb")
+            schema = request.data.get("schema", {})
+            preview_url = request.data.get("preview_image_url", "")
+
+            if not name:
+                return Response({"detail": "name is required"}, status=400)
+
+        # unique naming fallback
+        base_name = name
+        i = 1
+        while ResumeTemplate.objects.filter(name=name).exists():
+            i += 1
+            name = f"{base_name} ({i})"
+
+        obj = ResumeTemplate.objects.create(
+            name=name,
+            category=category,
+            layout=layout,
+            status="draft",
+            color=color,
+            source="imported",
+            schema=schema,
+        )
+
+        # download preview -> save locally (freeze)
+        if preview_url:
+            try:
+                r = requests.get(preview_url, timeout=10)
+                r.raise_for_status()
+                fname = f"{slugify(obj.name)}.png"
+                obj.preview_image.save(fname, ContentFile(r.content), save=True)
+            except Exception:
+                # preview fail should NOT break import
+                pass
+
+        return Response(ResumeTemplateSerializer(obj).data, status=status.HTTP_201_CREATED)
+
+
+class AdminTemplateDuplicateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def post(self, request, pk: int):
+        src = ResumeTemplate.objects.filter(pk=pk).first()
+        if not src:
+            return Response({"detail": "Template not found"}, status=404)
+
+        new_name = request.data.get("name") or f"{src.name} Copy"
+        base_name = new_name
+        i = 1
+        while ResumeTemplate.objects.filter(name=new_name).exists():
+            i += 1
+            new_name = f"{base_name} ({i})"
+
+        dup = ResumeTemplate.objects.create(
+            name=new_name,
+            category=src.category,
+            layout=src.layout,
+            status="draft",
+            color=src.color,
+            source="duplicated",
+            description=src.description,
+            schema=src.schema,
+        )
+
+        # copy preview file as OUR asset
+        if src.preview_image:
+            try:
+                src.preview_image.open("rb")
+                content = src.preview_image.read()
+                dup.preview_image.save(f"{slugify(dup.name)}.png", ContentFile(content), save=True)
+            except Exception:
+                pass
+
+        return Response(ResumeTemplateSerializer(dup).data, status=201)
+

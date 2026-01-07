@@ -88,6 +88,63 @@ class OTPVerifySerializer(serializers.Serializer):
 # ✅ NEW: Templates + Pricing serializers
 # =========================
 
+# class ResumeTemplateSerializer(serializers.ModelSerializer):
+#     updated = serializers.SerializerMethodField()
+
+#     class Meta:
+#         model = ResumeTemplate
+#         fields = [
+#             "id",
+#             "name",
+#             "category",
+#             "layout",
+#             "status",
+#             "downloads",
+#             "rating",
+#             "color",
+#             "updated",
+#             "updated_at",
+#             "created_at",
+#         ]
+#         read_only_fields = ["id", "updated", "updated_at", "created_at"]
+
+#     def get_updated(self, obj):
+#         # frontend wants dd/mm/yyyy
+#         return obj.updated_at.strftime("%d/%m/%Y")
+
+
+# class TemplatePricingSerializer(serializers.ModelSerializer):
+#     templateName = serializers.CharField(source="template.name", read_only=True)
+#     template_id = serializers.PrimaryKeyRelatedField(
+#         source="template", queryset=ResumeTemplate.objects.all(), write_only=True
+#     )
+#     updated = serializers.SerializerMethodField()
+
+#     class Meta:
+#         model = TemplatePricing
+#         fields = [
+#             "id",
+#             "template_id",
+#             "templateName",
+#             "billing_type",
+#             "currency",
+#             "price",
+#             "discount_percent",
+#             "final_price",
+#             "status",
+#             "updated",
+#             "updated_at",
+#             "created_at",
+#         ]
+#         read_only_fields = ["id", "templateName", "final_price", "updated", "updated_at", "created_at"]
+
+#     def get_updated(self, obj):
+#         return obj.updated_at.strftime("%d/%m/%Y")
+
+# serializers.py
+from rest_framework import serializers
+from .models import ResumeTemplate, TemplatePricing
+
 class ResumeTemplateSerializer(serializers.ModelSerializer):
     updated = serializers.SerializerMethodField()
 
@@ -102,22 +159,35 @@ class ResumeTemplateSerializer(serializers.ModelSerializer):
             "downloads",
             "rating",
             "color",
+
+            # ✅ NEW
+            "source",
+            "description",
+            "schema",
+            "preview_image",
+            "version",
+
             "updated",
             "updated_at",
             "created_at",
         ]
-        read_only_fields = ["id", "updated", "updated_at", "created_at"]
+        read_only_fields = ["id", "updated", "updated_at", "created_at", "version"]
 
     def get_updated(self, obj):
-        # frontend wants dd/mm/yyyy
         return obj.updated_at.strftime("%d/%m/%Y")
 
 
 class TemplatePricingSerializer(serializers.ModelSerializer):
     templateName = serializers.CharField(source="template.name", read_only=True)
+
+    # ✅ write-only (already)
     template_id = serializers.PrimaryKeyRelatedField(
         source="template", queryset=ResumeTemplate.objects.all(), write_only=True
     )
+
+    # ✅ read-only - frontend edit ke liye
+    template_pk = serializers.IntegerField(source="template.id", read_only=True)
+
     updated = serializers.SerializerMethodField()
 
     class Meta:
@@ -125,6 +195,7 @@ class TemplatePricingSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "template_id",
+            "template_pk",
             "templateName",
             "billing_type",
             "currency",
@@ -136,10 +207,11 @@ class TemplatePricingSerializer(serializers.ModelSerializer):
             "updated_at",
             "created_at",
         ]
-        read_only_fields = ["id", "templateName", "final_price", "updated", "updated_at", "created_at"]
+        read_only_fields = ["id", "templateName", "template_pk", "final_price", "updated", "updated_at", "created_at"]
 
     def get_updated(self, obj):
         return obj.updated_at.strftime("%d/%m/%Y")
+
 
 # serializers.py
 
@@ -175,3 +247,4 @@ class SubscriptionSerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = ["id", "user_name", "user_email", "user_phone", "created_at"]
+        
