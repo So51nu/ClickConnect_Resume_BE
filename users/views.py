@@ -847,3 +847,266 @@ class AdminTemplateDuplicateView(APIView):
 
         return Response(ResumeTemplateSerializer(dup).data, status=201)
 
+
+# views.py mein yeh imports add karo
+from rest_framework.permissions import IsAuthenticated
+from rest_framework import generics
+from django.db.models import Q
+from .models import Resume
+from .serializers import ResumeSerializer
+
+# Student APIs for templates and resumes
+
+# # ✅ Student Templates List (only active templates)
+# class StudentTemplateListView(generics.ListAPIView):
+#     permission_classes = [IsAuthenticated]
+#     serializer_class = ResumeTemplateSerializer
+    
+#     def get_queryset(self):
+#         return ResumeTemplate.objects.filter(status="active").order_by('name')
+
+# # ✅ Student Resumes List/Create
+# class StudentResumeListCreateView(generics.ListCreateAPIView):
+#     permission_classes = [IsAuthenticated]
+#     serializer_class = ResumeSerializer
+    
+#     def get_queryset(self):
+#         return Resume.objects.filter(user=self.request.user).order_by('-updated_at')
+    
+#     def perform_create(self, serializer):
+#         template = serializer.validated_data.get('template')
+#         # Create default empty resume data
+#         default_data = {
+#             "header": {
+#                 "fullName": "",
+#                 "jobTitle": "",
+#                 "email": "",
+#                 "phone": "",
+#                 "location": "",
+#                 "linkedin": "",
+#                 "website": ""
+#             },
+#             "summary": "",
+#             "experience": [{"title": "", "company": "", "location": "", "from": "", "to": "", "bullets": [""]}],
+#             "education": [{"school": "", "degree": "", "from": "", "to": ""}],
+#             "skills": {"programming": [], "frameworks": [], "tools": []},
+#             "projects": [{"name": "", "desc": ""}]
+#         }
+        
+#         resume = serializer.save(
+#             user=self.request.user,
+#             data=default_data,
+#             status="draft"
+#         )
+#         return resume
+
+# # ✅ Student Resume Detail/Update/Delete
+# class StudentResumeDetailView(generics.RetrieveUpdateDestroyAPIView):
+#     permission_classes = [IsAuthenticated]
+#     serializer_class = ResumeSerializer
+    
+#     def get_queryset(self):
+#         return Resume.objects.filter(user=self.request.user)
+
+
+
+# views.py mein yeh APIs add karo
+# Student Template Detail View
+# class StudentTemplateDetailView(APIView):
+#     permission_classes = [IsAuthenticated]
+    
+#     def get(self, request, pk):
+#         try:
+#             template = ResumeTemplate.objects.get(id=pk, status="active")
+#             serializer = ResumeTemplateSerializer(template)
+#             return Response(serializer.data)
+#         except ResumeTemplate.DoesNotExist:
+#             return Response({"detail": "Template not found or not active"}, status=404)
+
+# Student Resume Update View
+class StudentResumeUpdateView(generics.UpdateAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = ResumeSerializer
+    
+    def get_queryset(self):
+        return Resume.objects.filter(user=self.request.user)
+    
+    def perform_update(self, serializer):
+        serializer.save()
+
+# views.py (replace your current StudentResumeDetailView with this)
+
+from rest_framework import generics
+from rest_framework.permissions import IsAuthenticated
+from .models import Resume
+from .serializers import ResumeSerializer
+
+# class StudentResumeDetailView(generics.RetrieveUpdateDestroyAPIView):
+#     permission_classes = [IsAuthenticated]
+#     serializer_class = ResumeSerializer
+
+#     def get_queryset(self):
+#         # ✅ user can only access own resumes
+#         return Resume.objects.filter(user=self.request.user)
+
+
+# # ✅ Student Dashboard Stats
+# class StudentDashboardStatsView(APIView):
+#     permission_classes = [IsAuthenticated]
+    
+#     def get(self, request):
+#         user = request.user
+#         resumes = Resume.objects.filter(user=user)
+        
+#         stats = {
+#             "totalResumes": resumes.count(),
+#             "completed": resumes.filter(status="completed").count(),
+#             "inProgress": resumes.filter(status__in=["draft", "in_progress"]).count(),
+#             "downloads": resumes.aggregate(total=Sum('download_count'))['total'] or 0
+#         }
+        
+#         return Response(stats)
+
+# # ✅ Student Resume Download Tracking
+# from django.utils import timezone
+# from django.db.models import Sum
+# from django.utils import timezone
+
+# class StudentResumeDownloadView(APIView):
+#     permission_classes = [IsAuthenticated]
+    
+#     def post(self, request, resume_id):
+#         try:
+#             resume = Resume.objects.get(id=resume_id, user=request.user)
+#             resume.download_count += 1
+#             resume.last_downloaded = timezone.now()
+#             resume.save()
+            
+#             # Increment template downloads count too
+#             if resume.template:
+#                 resume.template.downloads += 1
+#                 resume.template.save()
+            
+#             return Response({
+#                 "message": "Download tracked successfully",
+#                 "download_count": resume.download_count
+#             })
+#         except Resume.DoesNotExist:
+#             return Response({"error": "Resume not found"}, status=404)
+
+# views.py (important resume views)
+
+from django.db.models import Sum
+from django.utils import timezone
+from rest_framework import generics, status
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from .models import Resume, ResumeTemplate
+from .serializers import ResumeSerializer, ResumeTemplateSerializer
+
+
+# ✅ STUDENT: Templates list
+class StudentTemplateListView(generics.ListAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = ResumeTemplateSerializer
+
+    def get_queryset(self):
+        return ResumeTemplate.objects.filter(status="active").order_by("name")
+
+
+# ✅ STUDENT: Template detail
+class StudentTemplateDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        try:
+            template = ResumeTemplate.objects.get(id=pk, status="active")
+            serializer = ResumeTemplateSerializer(template, context={"request": request})
+            return Response(serializer.data)
+        except ResumeTemplate.DoesNotExist:
+            return Response({"detail": "Template not found or not active"}, status=404)
+
+
+# ✅ STUDENT: Resume list + create
+class StudentResumeListCreateView(generics.ListCreateAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = ResumeSerializer
+
+    def get_queryset(self):
+        return Resume.objects.filter(user=self.request.user).order_by("-updated_at")
+
+    def perform_create(self, serializer):
+        default_data = {
+            "header": {"fullName": "", "jobTitle": "", "email": "", "phone": "", "location": "", "linkedin": "", "website": ""},
+            "summary": "",
+            "experience": [{"title": "", "company": "", "location": "", "from": "", "to": "", "bullets": [""]}],
+            "education": [{"school": "", "degree": "", "from": "", "to": ""}],
+            "skills": {"programming": [], "frameworks": [], "tools": []},
+            "projects": [{"name": "", "desc": ""}],
+        }
+        serializer.save(user=self.request.user, data=serializer.validated_data.get("data") or default_data, status="draft")
+
+
+# ✅ STUDENT: Resume detail/update/delete  (FIXED)
+class StudentResumeDetailView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = ResumeSerializer
+
+    def get_queryset(self):
+        return Resume.objects.filter(user=self.request.user)
+
+
+# ✅ STUDENT: Dashboard stats
+class StudentDashboardStatsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        resumes = Resume.objects.filter(user=request.user)
+        return Response({
+            "totalResumes": resumes.count(),
+            "completed": resumes.filter(status="completed").count(),
+            "inProgress": resumes.filter(status__in=["draft", "in_progress"]).count(),
+            "downloads": resumes.aggregate(total=Sum("download_count"))["total"] or 0,
+        })
+
+
+# ✅ STUDENT: Download tracking
+class StudentResumeDownloadView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, resume_id):
+        try:
+            resume = Resume.objects.get(id=resume_id, user=request.user)
+            resume.download_count = (resume.download_count or 0) + 1
+            resume.last_downloaded = timezone.now()
+            resume.save()
+
+            if resume.template:
+                resume.template.downloads = (resume.template.downloads or 0) + 1
+                resume.template.save()
+
+            return Response({"message": "Download tracked", "download_count": resume.download_count})
+        except Resume.DoesNotExist:
+            return Response({"error": "Resume not found"}, status=404)
+
+
+# ✅ ADMIN: Resume list/create (NEW - fixes 404)
+class AdminResumeListCreateView(generics.ListCreateAPIView):
+    permission_classes = [IsAdminUser]
+    serializer_class = ResumeSerializer
+
+    def get_queryset(self):
+        return Resume.objects.all().order_by("-updated_at")
+
+    def perform_create(self, serializer):
+        # admin resume saved under admin user account (for testing templates)
+        serializer.save(user=self.request.user, status=serializer.validated_data.get("status") or "draft")
+
+
+# ✅ ADMIN: Resume detail/update/delete (NEW)
+class AdminResumeDetailView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAdminUser]
+    serializer_class = ResumeSerializer
+    queryset = Resume.objects.all()
